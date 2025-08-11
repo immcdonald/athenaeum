@@ -4,10 +4,11 @@ import json
 import sys
 import platform
 import copy
+import re
 from pathlib import Path
 from cryptography.fernet import Fernet
 from threading import Lock
-
+import getpass
 
 from .base import MyBaseClass
 
@@ -113,6 +114,60 @@ class Credential_Manger(MyBaseClass):
             else:
                 self.add_error(return_dict, 'Section [%s] does not exist.' % section)
         return return_dict
+
+    def get_password(self: object, prompt: str, retries: int=3, min_size: int=1, max_size: int=0, regex_pattern: str=None) -> dict:
+        return_dict = self.gen_rs()
+
+        if regex_pattern:
+            regex = re.compile(regex_pattern)
+        else:
+            regex = None
+
+        for i in range(0, retries):
+            prompt = '%s [try: %s of %s]' % (prompt.strip(), i+1, retries)
+            try:
+                password = getpass.getpass(prompt)
+            except Exception as error:
+                print('ERROR:', error)
+                password = None
+                continue       
+
+            if password:
+                password = password.strip()
+
+                password_length = len(password)
+
+                if password_length < min_size:
+                    password = None
+                    print('Password must be at least %s characters long' % min_size)
+                    continue
+
+                if max_size > 0:
+                    if password_length > max_size:
+                        password = None
+                        print('Password must not be greater then %s characters long' % max_size)
+                        continue                   
+
+                if regex:
+                    result = regex.search(password)
+                    if result:
+                        pass
+                    else:
+                        password = None
+                        print("Password did not pass regex pattern %s" % regex_pattern)
+                        continue
+
+                break
+            else:
+                print("Password cannot be None")
+                continue
+
+        return_dict['password'] = password
+
+        if password is None:
+            self.add_error(return_dict,"Failed to resolve the password. See console output for the reason.")
+        return return_dict
+
 
     def get_sections(self: object) -> list:
         return_list = []
