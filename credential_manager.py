@@ -124,9 +124,9 @@ class Credential_Manger(MyBaseClass):
             regex = None
 
         for i in range(0, retries):
-            prompt = '%s [try: %s of %s]' % (prompt.strip(), i+1, retries)
+            prompt_str = '%s [try: %s of %s]' % (prompt.strip(), i+1, retries)
             try:
-                password = getpass.getpass(prompt)
+                password = getpass.getpass(prompt_str)
             except Exception as error:
                 print('ERROR:', error)
                 password = None
