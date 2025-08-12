@@ -109,8 +109,8 @@ class Credential_Manger(MyBaseClass):
         with self.lock:
             if section in self._credential_dict:
                 return_dict['contents'] = {}
-                for key in section:
-                    return_dict['contents'][key] = self._credential_dict[key] 
+                for key in self._credential_dict[section].keys():
+                    return_dict['contents'][key] = self._credential_dict[section][key] 
             else:
                 self.add_error(return_dict, 'Section [%s] does not exist.' % section)
         return return_dict
