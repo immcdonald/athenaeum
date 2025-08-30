@@ -5,6 +5,7 @@ import sys
 import platform
 import copy
 import re
+import random
 from pathlib import Path
 from cryptography.fernet import Fernet
 from threading import Lock
@@ -18,6 +19,7 @@ class Credential_Manger(MyBaseClass):
     # =========================================================================
     def __init__(self: object, log: object=None, raise_exception_level: int=sys.maxsize, class_id: int=None, instance_name=__name__, key=b'yxlMhDvwpIl395OwUviVStNUvt5ZsaCNEH7kzC8bChc=') -> None:
         super().__init__(log=log, class_id=class_id, instance_name=instance_name)
+
         self._credential_dict = {}
         # Note to change generate a different key use Fernet.generate_key()
         self._fernet = Fernet(key)
@@ -54,6 +56,7 @@ class Credential_Manger(MyBaseClass):
 
         self.read()
 
+
     def _process_fields(self, section:str, field_dict: dict) -> dict:
         return_dict = self.gen_rs()
 
@@ -67,10 +70,35 @@ class Credential_Manger(MyBaseClass):
                 self.add_error(return_dict, 'Expected additional_field_dict parameter to be a dict not %s' % type(field_dict))
         return return_dict
 
+    def _invert_bytearray(self: object, input_array: bytearray) -> bytearray:
+        for i in range(0, len(input_array)):
+            input_array[i] ^= 0xFF
+        return input_array
+
+    def _gen_random_bytearray(self: object, length: int) -> bytearray:
+        import string
+        available_characters = characters = string.ascii_letters + string.digits + string.punctuation
+        return bytearray(''.join(random.choice(available_characters) for i in range(length)), 'utf-8', errors='replace')
+
+
     def _write(self: object) -> dict:
         return_dict = self.gen_rs()
+
+        pre_salt_size = random.randint(11, 99)
+        post_salt_size = random.randint(11, 99)
+
+        part_a = bytearray("%02d" % pre_salt_size, 'utf-8')
+        part_b = bytearray("%02d" % post_salt_size, 'utf-8')
+        pre_salt = self._gen_random_bytearray(pre_salt_size)
+        post_salt = self._gen_random_bytearray(post_salt_size)
+
         file_contents = json.dumps(self._credential_dict)
-        file_contents = self._fernet.encrypt(file_contents.encode('utf-8'))
+        payload = self._fernet.encrypt(file_contents.encode('utf-8'))
+
+        file_contents = part_b + pre_salt + payload + post_salt+part_a
+
+        file_contents = file_contents[::-1]
+
         with open(self.credential_file_path, 'wb') as fp_out:
             fp_out.write(file_contents)
         return return_dict
@@ -198,8 +226,13 @@ class Credential_Manger(MyBaseClass):
                     file_contents = fp_in.read()
                 if file_contents:
                     if len(file_contents) > 0:
+                        file_contents = file_contents[::-1]
+                        pre_salt_size = int(file_contents[-2:].decode('utf-8')) + 2
+                        post_salt_size = (int(file_contents[0:2].decode('utf-8')) * -1) - 2
+                        file_contents = file_contents[pre_salt_size:post_salt_size]
                         file_contents = self._fernet.decrypt(file_contents)
                         self._credential_dict = json.loads(file_contents.decode('utf-8'))
+                        print(self._credential_dict)
         return return_dict
 
     def save(self: object) -> dict:
@@ -207,3 +240,7 @@ class Credential_Manger(MyBaseClass):
         with self.lock:
             self._write()
         return return_dict
+
+
+#cm = Credential_Manger()
+#cm.add('fred', {'user': "blah", 'password': 'testing'})
